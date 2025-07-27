@@ -1,7 +1,13 @@
 
 
-from .prompt_processor import class_subject_prompt, extract_exam_specifications_prompt
+from .prompt_processor import class_subject_prompt, extract_exam_specifications_prompt, generate_question_paper
+from google.cloud import storage
+import os
 
+
+DEFAULT_MESSAGE = """Hello! I'm your dedicated AI assistant, here to simplify and speed up the process of generating question papers for your classes. My goal is to save you valuable time, allowing you to focus more on teaching and less on administrative tasks.
+
+To help me create the perfect question paper for your students, please let me know the standard (e.g., Class 10, Class 12) and the subject (e.g., Maths, Physics) you're preparing for. Once I have this basic information, we can then refine the paper with specific topics, question types, and difficulty levels."""
 
 def get_bot_reponse(req_body):
     if len(list(req_body['standard'].keys())) == 0:
@@ -9,7 +15,7 @@ def get_bot_reponse(req_body):
         if response == None:
             return {
                     "bot": {
-                        "text": "Default output",
+                        "text": DEFAULT_MESSAGE,
                         "items": []
                     },
                     "type": "default"
@@ -32,7 +38,7 @@ def get_bot_reponse(req_body):
         if response == None:
             return {
                     "bot": {
-                        "text": "Default output",
+                        "text": DEFAULT_MESSAGE,
                         "items": []
                     },
                     "type": "default"
@@ -49,13 +55,79 @@ def get_bot_reponse(req_body):
     {"educator_id":"63e3c398-30b0-4325-9569-94fd482a127b","curriculum":{"id":"CBSE","name":"CBSE"},"standard":{"id":"CLASS 10","name":"CLASS 10"},"subject":{"id":"MATHS","name":"MATHS"},"topics":[{"id":"Real Numbers","name":"Real Numbers"},{"id":"Polynomials","name":"Polynomials"}],"question_config":[{"type":"MCQ","questions":5,"marks":1,"difficulty":"medium"},{"type":"Subjective","questions":3,"marks":2,"difficulty":"medium"},{"type":"Subjective","questions":2,"marks":5,"difficulty":"medium"}],"query":"Pleae generate the question paper"}
     
     """
+
+    response, question_paper_path, answer_sheet_path = generate_question_paper(req_body)
+
+
+    QUESTION_DESTINATION_BLOB_NAME = f"pdfs/{os.urandom(6).hex()}_{subject.lower()}_question_paper.pdf"  # Path in the bucket
+    ANSWER_DESTINATION_BLOB_NAME = f"pdfs/{os.urandom(6).hex()}_{subject.lower()}_question_paper.pdf"  # Path in the bucket
+
+    # Upload the file and get the public URL
+    question_public_url = upload_pdf_to_gcs("qgenie-467111", "qgenie-question-papers", question_paper_path, QUESTION_DESTINATION_BLOB_NAME)
+    answer_public_url = upload_pdf_to_gcs("qgenie-467111", "qgenie-question-papers", answer_sheet_path, ANSWER_DESTINATION_BLOB_NAME)
+
+
+    if response == None:
+        return {
+                    "bot": {
+                        "text": "Our servers encountered an error! We are looking into it. Thank you.",
+                        "items": []
+                    },
+                    "type": "default"
+                }
+
     return {
-            "bot": {
-                "text": "Please find the question paper generated here",
-                "items": []
-            },
-            "type": "default"
-        } 
+        "bot": {
+            "text": f"Please find the question paper generated here \n\nQuestion Paper: {question_public_url} \n\nAnswer Paper: {answer_public_url}",
+            "items": []
+        },
+        "type": "default"
+    } 
+
+
+
+def upload_pdf_to_gcs(project_id, bucket_name, source_file_path, destination_blob_name):
+    """
+    Uploads a PDF file to a Google Cloud Storage bucket and makes it publicly accessible.
+    
+    Args:
+        project_id (str): Your Google Cloud project ID.
+        bucket_name (str): Name of the GCS bucket.
+        source_file_path (str): Local path to the PDF file.
+        destination_blob_name (str): Name for the file in the bucket.
+    
+    Returns:
+        str: Public URL of the uploaded file.
+    """
+    try:
+        # Initialize the GCS client
+        storage_client = storage.Client(project=project_id)
+        
+        # Get the bucket
+        bucket = storage_client.bucket(bucket_name)
+        
+        # Create a blob object
+        blob = bucket.blob(destination_blob_name)
+        
+        # Upload the file
+        blob.upload_from_filename(source_file_path)
+        
+        # Make the blob publicly accessible
+        blob.make_public()
+        
+        # Get the public URL
+        public_url = blob.public_url
+        
+        print(f"File {source_file_path} uploaded to {destination_blob_name}.")
+        print(f"Public URL: {public_url}")
+        
+        return public_url
+    
+    except Exception as e:
+        print(f"Error uploading file: {e}")
+        return None
+
+
 
 
 """
