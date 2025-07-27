@@ -1,5 +1,6 @@
 from pydantic import BaseModel, UUID4
-from typing import List
+from typing import List, Optional
+from fastapi import UploadFile
 
 class CurriculumResponse(BaseModel):
     id: str
@@ -27,4 +28,15 @@ class TopicsListResponse(BaseModel):
     topics: List[TopicResponse]
 
 class CurriculumsListResponse(BaseModel):
-    curriculums: List[CurriculumResponse] 
+    curriculums: List[CurriculumResponse]
+
+class AddKnowledgeBaseRequest(BaseModel):
+    curriculum: str
+    standard: str
+    subject: str
+    title: str
+    file: UploadFile
+
+class AddKnowledgeBaseResponse(BaseModel):
+    success: bool
+    message: str 

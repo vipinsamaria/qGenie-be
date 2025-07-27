@@ -56,16 +56,7 @@ def get_bot_reponse(req_body):
     
     """
 
-    response, question_paper_path, answer_sheet_path = generate_question_paper(req_body)
-
-
-    QUESTION_DESTINATION_BLOB_NAME = f"pdfs/{os.urandom(6).hex()}_{subject.lower()}_question_paper.pdf"  # Path in the bucket
-    ANSWER_DESTINATION_BLOB_NAME = f"pdfs/{os.urandom(6).hex()}_{subject.lower()}_question_paper.pdf"  # Path in the bucket
-
-    # Upload the file and get the public URL
-    question_public_url = upload_pdf_to_gcs("qgenie-467111", "qgenie-question-papers", question_paper_path, QUESTION_DESTINATION_BLOB_NAME)
-    answer_public_url = upload_pdf_to_gcs("qgenie-467111", "qgenie-question-papers", answer_sheet_path, ANSWER_DESTINATION_BLOB_NAME)
-
+    response, question_paper_path, answer_sheet_path, subject = generate_question_paper(req_body)
 
     if response == None:
         return {
@@ -75,57 +66,114 @@ def get_bot_reponse(req_body):
                     },
                     "type": "default"
                 }
+    
 
+    unique_id = os.urandom(6).hex()
+
+    # Use descriptive and distinct names
+    QUESTION_DESTINATION_BLOB_NAME = f"pdfs/{unique_id}_{subject.lower()}_question_paper.pdf"
+    ANSWER_DESTINATION_BLOB_NAME = f"pdfs/{unique_id}_{subject.lower()}_answer_sheet.pdf"
+
+    # --- Dummy variables for the example ---
+    project_id = "qgenie-467111"
+    bucket_name = "qgenie-question-papers"
+    # ----------------------------------------
+
+    # Call the updated function to get signed URLs
+    question_url = upload_and_get_signed_url(project_id, bucket_name, question_paper_path, QUESTION_DESTINATION_BLOB_NAME)
+    answer_url = upload_and_get_signed_url(project_id, bucket_name, answer_sheet_path, ANSWER_DESTINATION_BLOB_NAME)
+
+
+    # Return the signed URLs
     return {
         "bot": {
-            "text": f"Please find the question paper generated here \n\nQuestion Paper: {question_public_url} \n\nAnswer Paper: {answer_public_url}",
+            "text": f"Please find the files generated here \n\nQuestion Paper: {question_url} \n\nAnswer Sheet: {answer_url}",
             "items": []
         },
         "type": "default"
-    } 
+    }
 
 
+import datetime
+from google.cloud import storage
 
-def upload_pdf_to_gcs(project_id, bucket_name, source_file_path, destination_blob_name):
+def upload_and_get_signed_url(project_id, bucket_name, source_file_path, destination_blob_name):
     """
-    Uploads a PDF file to a Google Cloud Storage bucket and makes it publicly accessible.
+    Uploads a file to GCS and returns a time-limited signed URL for access.
     
     Args:
         project_id (str): Your Google Cloud project ID.
         bucket_name (str): Name of the GCS bucket.
-        source_file_path (str): Local path to the PDF file.
+        source_file_path (str): Local path to the file.
         destination_blob_name (str): Name for the file in the bucket.
     
     Returns:
-        str: Public URL of the uploaded file.
+        str: A signed URL to access the file, or None on error.
     """
     try:
-        # Initialize the GCS client
         storage_client = storage.Client(project=project_id)
-        
-        # Get the bucket
         bucket = storage_client.bucket(bucket_name)
-        
-        # Create a blob object
         blob = bucket.blob(destination_blob_name)
         
         # Upload the file
         blob.upload_from_filename(source_file_path)
-        
-        # Make the blob publicly accessible
-        blob.make_public()
-        
-        # Get the public URL
-        public_url = blob.public_url
-        
         print(f"File {source_file_path} uploaded to {destination_blob_name}.")
-        print(f"Public URL: {public_url}")
+
+        # Generate a signed URL, valid for 1 hour (you can change this)
+        expiration_time = datetime.timedelta(hours=1)
+        signed_url = blob.generate_signed_url(
+            version="v4",
+            expiration=expiration_time,
+            method="GET",
+        )
         
-        return public_url
+        print(f"Generated Signed URL: {signed_url}")
+        return signed_url
     
     except Exception as e:
-        print(f"Error uploading file: {e}")
+        print(f"Error processing file: {e}")
         return None
+
+# def upload_pdf_to_gcs(project_id, bucket_name, source_file_path, destination_blob_name):
+#     """
+#     Uploads a PDF file to a Google Cloud Storage bucket and makes it publicly accessible.
+    
+#     Args:
+#         project_id (str): Your Google Cloud project ID.
+#         bucket_name (str): Name of the GCS bucket.
+#         source_file_path (str): Local path to the PDF file.
+#         destination_blob_name (str): Name for the file in the bucket.
+    
+#     Returns:
+#         str: Public URL of the uploaded file.
+#     """
+#     try:
+#         # Initialize the GCS client
+#         storage_client = storage.Client(project=project_id)
+        
+#         # Get the bucket
+#         bucket = storage_client.bucket(bucket_name)
+        
+#         # Create a blob object
+#         blob = bucket.blob(destination_blob_name)
+        
+#         # Upload the file
+#         blob.upload_from_filename(source_file_path)
+        
+#         # Make the blob publicly accessible
+#         blob.make_public()
+        
+#         # Get the public URL
+#         public_url = blob.public_url
+        
+#         print(f"File {source_file_path} uploaded to {destination_blob_name}.")
+#         print(f"Public URL: {public_url}")
+        
+#         return public_url
+    
+#     except Exception as e:
+#         print(f"Error uploading file: {e}")
+#         return None
 
 
 

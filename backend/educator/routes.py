@@ -1,15 +1,15 @@
+from auth.jwt_utils import get_current_user
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.orm import Session
 from db.database import get_db_session
 from db.models import KnowledgeBase
-from auth.jwt_utils import require_auth
 
 router = APIRouter(prefix="/api/educator", tags=["Educator"])
 
 @router.get("/knowledge_base")
 async def get_knowledge_base_items(
     request: Request,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db_session),
     limit: int = 10,
     offset: int = 0

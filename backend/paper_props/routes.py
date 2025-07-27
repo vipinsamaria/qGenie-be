@@ -1,18 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
 
 from db.database import get_db, get_db_session
-from db.models import Institution, Curriculum, Standard, Subject, Topic
+from db.models import Institution, Curriculum, Standard, Subject, Topic, KnowledgeBase
 from auth.jwt_utils import get_current_user
 from .schemas import (
     CurriculumResponse,
     StandardsListResponse,
     SubjectsListResponse,
     TopicsListResponse,
-    CurriculumsListResponse
+    CurriculumsListResponse,
+    AddKnowledgeBaseRequest,
+    AddKnowledgeBaseResponse
 )
+import datetime
+from google.cloud import storage
+import os
 
 router = APIRouter(
     prefix="/paper-props",
@@ -138,3 +143,71 @@ async def get_subject_topics(
             for topic in topics
         ]
     ) 
+
+@router.post("/add_kb", response_model=AddKnowledgeBaseResponse)
+async def add_knowledge_base(
+    curriculum: str,
+    standard: str,
+    subject: str,
+    title: str,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db_session)
+):
+    """Add a new knowledge base entry with file upload."""
+    try:
+        # Verify user is an educator
+        if current_user["type"] != "educator":
+            raise HTTPException(status_code=403, detail="Only educators can add knowledge base items")
+
+        # Save file to temporary location
+        temp_file_path = f"/tmp/{file.filename}"
+        with open(temp_file_path, "wb+") as file_object:
+            file_object.write(await file.read())
+
+        # Upload to Google Cloud Storage
+        project_id = "qgenie-467111"  # Replace with your project ID
+        bucket_name = "qgenie-question-papers"  # Replace with your bucket name
+        unique_id = os.urandom(6).hex()
+        destination_blob_name = f"kb/{unique_id}_{file.filename}"
+
+        storage_client = storage.Client(project=project_id)
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(destination_blob_name)
+        
+        # Upload the file
+        blob.upload_from_filename(temp_file_path)
+        
+        # Generate a signed URL that doesn't expire
+        file_url = f"gs://{bucket_name}/{destination_blob_name}"
+
+        # Clean up temporary file
+        os.remove(temp_file_path)
+
+        # Create knowledge base entry
+        kb_entry = KnowledgeBase(
+            curriculum=curriculum,
+            standard=standard,
+            subject=subject,
+            chapter=title,  # Using title as chapter
+            file_url=file_url,
+            inserted_by=current_user["sub"]
+        )
+        
+        db.add(kb_entry)
+        db.commit()
+
+        return AddKnowledgeBaseResponse(
+            success=True,
+            message="Knowledge base entry added successfully"
+        )
+
+    except Exception as e:
+        # Clean up temporary file if it exists
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+        
+        return AddKnowledgeBaseResponse(
+            success=False,
+            message=f"Failed to add knowledge base entry: {str(e)}"
+        ) 

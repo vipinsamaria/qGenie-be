@@ -5,7 +5,7 @@ import os
 import json
 import pandas as pd
 
-from paper_generation import create_question_paper, create_answer_sheet
+from .paper_generation import create_question_paper, create_answer_sheet
 
 
 # Set the path to your service account key file
@@ -346,7 +346,7 @@ def generate_mcq_answer_dict(curriculum, standard, subject, markdown, question_c
     try:
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-2.5-pro",
             contents=prompt,
         )
 
@@ -367,6 +367,7 @@ def generate_subjective_answer_dict(curriculum, standard, subject, markdown, que
         1. A JSON object specifying the exact number of questions to generate for each difficulty level ("Easy", "Medium", "Hard") Note that generate questions for only given difficulty.
         2. Don't add ``` characters at the start and the end of your response.
         3. Chapter content as a markdown with chapter names & page numbers for references
+        4. Never reference something without context. Never mention this table or that reference without providing that context in the answer.
 
         You must **strictly follow the provided question counts per difficulty level**—no more, no less.
 
@@ -421,7 +422,7 @@ def generate_subjective_answer_dict(curriculum, standard, subject, markdown, que
     try:
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-2.5-pro",
             contents=prompt,
         )
 
@@ -453,7 +454,6 @@ def generate_question_paper(user_input: dict):
 
         if df_filter.sum().item() == 0:
             continue;
-        
         
         markdown += "Chapter : " + topic + " \n \n "
         markdown += df[df_filter]['markdown'].iloc[0]
@@ -506,7 +506,7 @@ def generate_question_paper(user_input: dict):
         if os.path.exists(OUTPUT_FILENAME_ANSWER):
             os.remove(OUTPUT_FILENAME_ANSWER)
 
-        return None, None, None;
+        return None, None, None, None;
 
     with open("test_json.json", 'w') as file:
         json.dump(master_json, file)
@@ -520,7 +520,7 @@ def generate_question_paper(user_input: dict):
     # Generate the Answer Sheet PDF
     create_answer_sheet(master_json, OUTPUT_FILENAME_ANSWER, answer_title)
 
-    return master_json, OUTPUT_FILENAME_QUESTION, OUTPUT_FILENAME_ANSWER
+    return master_json, OUTPUT_FILENAME_QUESTION, OUTPUT_FILENAME_ANSWER, subject
 
 
 
