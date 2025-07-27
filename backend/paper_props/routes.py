@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
@@ -146,15 +146,15 @@ async def get_subject_topics(
 
 @router.post("/add_kb", response_model=AddKnowledgeBaseResponse)
 async def add_knowledge_base(
-    curriculum: str,
-    standard: str,
-    subject: str,
-    title: str,
+    curriculum: str = Form(...),
+    standard: str = Form(...),
+    subject: str = Form(...),
+    title: str = Form(...),
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db_session)
 ):
-    """Add a new knowledge base entry with file upload."""
+    """Add a new knowledge base entry with file upload and form data."""
     try:
         # Verify user is an educator
         if current_user["type"] != "educator":

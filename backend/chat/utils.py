@@ -87,7 +87,7 @@ def get_bot_reponse(req_body):
     # Return the signed URLs
     return {
         "bot": {
-            "text": f"Please find the files generated here \n\nQuestion Paper: {question_url} \n\nAnswer Sheet: {answer_url}",
+            "text": f"Please find the files generated here \n\nQuestion Paper: {question_paper_path} \n\nAnswer Sheet: {answer_sheet_path}",
             "items": []
         },
         "type": "default"
